@@ -1,0 +1,35 @@
+# Sequence of Mappings, one mapping per node
+---
+-
+  hostname: node1
+  network:
+    ip: 10.100.0.2
+    subnet: 24
+    gateway: 10.100.0.1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+  etcd:
+    nodename: node1
+-
+  hostname: node2
+  network:
+    ip: 10.150.0.2
+    subnet: 24
+    gateway: 10.150.0.1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+  etcd:
+    nodename: node2
+-
+  hostname: node3
+  network:
+    ip: 10.200.0.2
+    subnet: 24
+    gateway: 10.200.0.1
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+  etcd:
+    nodename: node3
