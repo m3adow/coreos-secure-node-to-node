@@ -77,7 +77,7 @@ coreos:
             [Service]
             Environment=FLANNELD_IFACE={{ my.network.ip }}
             EnvironmentFile=/etc/environment
-            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{ "Network": "10.1.0.0/16", "Backend": { "Type": "vxlan"} }'
+            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{ "Network": "10.1.0.0/16", "Backend": { "Type": "alloc"} }'
       command: start
 write_files:
   - path: "/etc/resolv.conf"
