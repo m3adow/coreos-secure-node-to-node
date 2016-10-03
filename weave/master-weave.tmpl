@@ -1,0 +1,127 @@
+#cloud-config
+hostname: {{ my.hostname}}
+
+{% include '%s_keys.yml' % my.hostname ignore missing %}
+
+write_files:
+  - path: "/etc/environment"
+    permissions: "0644"
+    owner: "root"
+    content: |
+      COREOS_PUBLIC_IPV4={{ my.network.ip }}
+      ETCDCTL_CA_FILE=/etc/ssl/etcd/ca.crt
+      ETCDCTL_CERT_FILE=/etc/ssl/etcd/{{ my.hostname }}.crt
+      ETCDCTL_KEY_FILE=/etc/ssl/etcd/{{ my.hostname }}.key
+      ETCDCTL_ENDPOINT=https://127.0.0.1:2379
+      # Client Env Vars
+      ETCD_CA_FILE=/etc/ssl/etcd/ca.crt
+      ETCD_CERT_FILE=/etc/ssl/etcd/{{ my.hostname }}.crt
+      ETCD_KEY_FILE=/etc/ssl/etcd/{{ my.hostname }}.key
+      # Peers Env Vars
+      ETCD_PEER_CA_FILE=/etc/ssl/etcd/ca.crt
+      ETCD_PEER_CERT_FILE=/etc/ssl/etcd/{{ my.hostname }}.crt
+      ETCD_PEER_KEY_FILE=/etc/ssl/etcd/{{ my.hostname }}.key
+coreos:
+  etcd2:
+    name: "{{ my.etcd.nodename }}"
+    data-dir: /var/lib/etcd2
+    # clients
+    advertise-client-urls: https://{{ my.network.ip }}:2379
+    listen-client-urls: https://0.0.0.0:2379
+    # peers
+    initial-advertise-peer-urls: https://{{ my.network.ip }}:2380
+    listen-peer-urls: https://{{ my.network.ip }}:2380
+    # cluster
+    initial-cluster: {{ my.etcd.nodename }}=https://{{ my.network.ip }}:2380,{% for node in remaining_nodes %}{{ node.etcd.nodename }}=https://{{ node.network.ip }}:2380
+            {%- if not loop.last %},{% endif %}{% endfor %}
+    initial-cluster-state: new
+    initial-cluster-token: etcd-cluster-1
+  locksmith:
+    endpoint: https://{{ my.network.ip }}:2379,{% for node in remaining_nodes %}https://{{ node.network.ip }}:2379
+            {%- if not loop.last %},{% endif %}{% endfor %}
+    etcd_cafile: /etc/ssl/etcd/ca.crt
+    etcd_certfile: /etc/ssl/etcd/{{ my.hostname }}.crt
+    etcd_keyfile: /etc/ssl/etcd/{{ my.hostname }}.key
+  update:
+    reboot-strategy: "etcd-lock"
+  units:
+    - name: 00-eth0-network
+      runtime: true
+      content: |
+        [Match]
+        Name=eth0
+
+        [Network]
+        {% for nameserv in my.network.dns -%}
+        DNS={{ nameserv }}
+        {% endfor %}
+        Address={{ my.network.ip }}/{{ my.network.subnet }}
+        Gateway={{ my.network.gateway }}
+    - name: etcd2.service
+      drop-ins:
+        - name: 30-certificates.conf
+          content: |
+            [Service]
+            EnvironmentFile=/etc/environment
+      command: "start"
+    - name: 10-weave.network
+      runtime: false
+      content: |
+        [Match]
+        Type=bridge
+        Name=weave*
+
+        [Network]
+
+    - name: install-weave.service
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        After=network-online.target
+        After=docker.service
+        Description=Install Weave
+        Documentation=http://zettio.github.io/weave/
+        Requires=network-online.target
+        Requires=docker.service
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStartPre=/bin/mkdir -p /opt/bin/
+        ExecStartPre=/usr/bin/curl \
+          --silent \
+          --location \
+          https://github.com/weaveworks/weave/releases/download/latest_release/weave \
+          --output /opt/bin/weave
+        ExecStartPre=/usr/bin/chmod +x /opt/bin/weave
+        ExecStartPre=/usr/bin/docker pull zettio/weave:latest
+        ExecStartPre=/usr/bin/docker pull zettio/weavetools:latest
+        ExecStartPre=/usr/bin/docker pull zettio/weavedns:latest
+        ExecStartPre=/usr/bin/docker pull weaveworks/weaveexec:latest
+        ExecStart=/bin/echo Weave Installed
+write_files:
+  - path: "/etc/resolv.conf"
+    permissions: "0644"
+    owner: "root"
+    content: |
+      {% for nameserv in my.network.dns -%}
+        nameserver {{ nameserv }}
+      {% endfor %}
+  - path: /etc/ssh/sshd_config
+    permissions: 600
+    owner: root:root
+    content: |
+      PermitRootLogin no
+      PasswordAuthentication no
+      ChallengeResponseAuthentication no
+      AllowUsers core kube
+  - path: /root/.vimrc
+    permissions: 0644
+    owner: root:root
+    content: |
+      se nu
+      se ai
+      se shiftwidth=2
+      se tabstop=2
+      se expandtab
