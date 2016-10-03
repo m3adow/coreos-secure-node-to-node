@@ -3,3 +3,6 @@
 *.swo
 
 secret/
+.dropboxattr
+/**/.dropbox.attr
+.dropbox
