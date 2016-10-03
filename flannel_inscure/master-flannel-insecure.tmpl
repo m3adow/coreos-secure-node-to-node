@@ -2,6 +2,8 @@
 # Inspired by https://github.com/cornelius-keller/coreos-vagrant-tinc/blob/master/user-data
 hostname: {{ my.hostname}}
 
+{% include '%s_keys.yml' % my.hostname ignore missing %}
+
 write_files:
   - path: "/etc/environment"
     permissions: "0644"
