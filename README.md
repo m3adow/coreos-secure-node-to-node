@@ -4,7 +4,7 @@ WIP Master template(s) for CoreOS to enable secure node to node communication.
 
 Templates can be used with my [cloud-config-creator](https://github.com/m3adow/cloud-config-creator) creator. The **out/** subdir of every method should contain example files.
 
-Possible connection methods which  
+## Possible connection methods:
 
 Overlay Network agnostic methods:
 
