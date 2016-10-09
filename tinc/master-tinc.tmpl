@@ -193,6 +193,38 @@ coreos:
 
         ExecStop=/usr/bin/docker rm -f tinc
         ExecStopPost=/bin/sh -c  "etcdctl rm /services/tinc/$TINC_HOSTNAME"
+    - name: docker-bridge.service
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Configure Docker Bridge
+        Requires=docker.service
+        #After=docker.socket
+        [Service]
+        Type=oneshot
+        #ExecStartPre=-/bin/sh -c "route del -net 10.1.0.0 netmask 255.255.0.0 dev tap0"
+        ExecStartPre=/bin/sh -c "while ! ifconfig -s | grep -q tap0 ; do  sleep 1; done"
+        ExecStartPre=/bin/sh -c "while ! ifconfig -s | grep -q docker0 ; do  sleep 1; done"
+        ExecStartPre=/bin/sh -c "route add -net 10.1.0.0 netmask 255.255.0.0 dev docker0"
+        #ExecStartPre=-/bin/sh -c "brctl delif docker0 tap0"
+        ExecStart=/bin/sh -c "brctl addif docker0 tap0"
+
+
+
+    - name: tinc-config-updater.service
+      command: start
+      enable: true
+      content: |
+        [Unit]
+        Description=Countinously update tinc configuration after ectd changes
+        Requires=tinc.service
+        Restart=always
+        After=tinc.service
+        
+        [Service]
+        ExecStartPre=/srv/tinc_initial_config.sh
+ExecStart=/usr/bin/etcdctl exec-watch --recursive /services/tinc -- /srv/tinc_conf_updater.sh
   
   
   
