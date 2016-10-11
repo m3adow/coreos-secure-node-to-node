@@ -1,4 +1,4 @@
-IPerf Tests without tinc:
+IPerf Tests with tinc:
 
 ```bash
 / # iperf -c 10.1.96.2 -i 1

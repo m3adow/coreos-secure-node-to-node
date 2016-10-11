@@ -194,6 +194,7 @@ coreos:
 
         ExecStop=/usr/bin/docker rm -f tinc
         ExecStopPost=/bin/sh -c  "etcdctl rm /services/tinc/$TINC_HOSTNAME"
+        ExecStopPost=-/bin/sh -c "brctl delif docker0 tap0"
     - name: docker-bridge.service
       command: start
       enable: true
