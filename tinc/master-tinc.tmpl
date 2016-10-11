@@ -112,6 +112,9 @@ users:
       - "sudo"
       - "docker"
 
+# This is needed for me as my servers tend to timeout. :-(
+{% include 'etcd_misc.yml' ignore missing %}
+
 # TINC
 
 coreos:
@@ -131,22 +134,6 @@ coreos:
         [Service]
         Type=oneshot
         ExecStart=/bin/sh -c "echo \"TINC_HOSTNAME=`hostname -s | sed -e 's/-/_/g'`\" > /etc/tinc-env"
-    - name: flannel-wait.service
-      command: start
-      enable: true
-      content: |
-
-        [Unit]
-        Description=Wait For Flannel
-        Requires=flanneld.service
-        After=etcd.service etcd2.service early-docker.service flanneld.service
-        Before=early-docker.target
-
-        [Service]
-        Type=oneshot
-        ExecStart=/bin/sh -c "echo \"TINC_HOSTNAME=`hostname -s | sed -e 's/-/_/g'`\" > /etc/tinc-env"
-        ExecStartPre=/bin/sh -c "while [ ! -f /run/flannel/subnet.env ] ; do sleep 1; done"
-
     - name: tinc-conf.service
       enable: true
       command: start
@@ -155,27 +142,41 @@ coreos:
         Description=Tinc Configuration Service
         After=etcd.service etcd2.service early-docker.service flanneld.service
         Before=early-docker.target fleet.service
+        AssertPathExists=/run/flannel/subnet.env
 
         [Service]
         Type=oneshot
         ExecStart=/bin/sh -c "echo \"TINC_HOSTNAME=`hostname -s | sed -e 's/-/_/g'`\" > /etc/tinc-env"
+    - name: flannel-subnet-env.path
+      enable: true
+      command: start
+      content: |
+        [Unit]
+        Description=flannel.env file in /run
+        Requires=flanneld.service
+        After=etcd.service etcd2.service early-docker.service flanneld.service
+        #Before=tinc-conf.service early-docker.target
+
+        [Path]
+        PathExists=/run/flannel/subnet.env
+        Unit=tinc.service
+
+        [Install]
+        WantedBy=multi-user.target
     - name: tinc.service
       command: start
       enable: true
       content: |
         [Unit]
         Description=Tinc VPN Service
-        Requires=flannel-wait.service
-        After=early-docker.service flanneld.service tinc-env.service flannel-wait.service
-
+        Requires=flannel-subnet-env.path
+        After=early-docker.service flanneld.service tinc-env.service flannel-subnet-env.path
         Before=early-docker.target
 
         [Service]
         Environment="DOCKER_HOST=unix:///var/run/early-docker.sock"
         EnvironmentFile=/etc/tinc-env
-
         EnvironmentFile=/etc/environment
-
 
         ExecStartPre=/usr/bin/docker pull jenserat/tinc
         ExecStartPre=/usr/bin/rm -rf /srv/tinc
@@ -199,19 +200,16 @@ coreos:
       content: |
         [Unit]
         Description=Configure Docker Bridge
-        Requires=docker.service
-        #After=docker.socket
+        Requires=docker.service sys-devices-virtual-net-tap0.device sys-devices-virtual-net-docker0.device
+        After=docker.service sys-devices-virtual-net-tap0.device sys-devices-virtual-net-docker0.device
+
         [Service]
         Type=oneshot
-        #ExecStartPre=-/bin/sh -c "route del -net 10.1.0.0 netmask 255.255.0.0 dev tap0"
-        ExecStartPre=/bin/sh -c "while ! ifconfig -s | grep -q tap0 ; do  sleep 1; done"
-        ExecStartPre=/bin/sh -c "while ! ifconfig -s | grep -q docker0 ; do  sleep 1; done"
+        #ExecStartPre=/usr/lib/systemd/systemd-networkd-wait-online --interface=docker0
+        #ExecStartPre=/usr/lib/systemd/systemd-networkd-wait-online --interface=tap0
         ExecStartPre=/bin/sh -c "route add -net 10.1.0.0 netmask 255.255.0.0 dev docker0"
         #ExecStartPre=-/bin/sh -c "brctl delif docker0 tap0"
         ExecStart=/bin/sh -c "brctl addif docker0 tap0"
-
-
-
     - name: tinc-config-updater.service
       command: start
       enable: true
@@ -219,12 +217,14 @@ coreos:
         [Unit]
         Description=Countinously update tinc configuration after ectd changes
         Requires=tinc.service
-        Restart=always
         After=tinc.service
         
         [Service]
+        EnvironmentFile=/etc/environment
+        Restart=always
+
         ExecStartPre=/srv/tinc_initial_config.sh
-ExecStart=/usr/bin/etcdctl exec-watch --recursive /services/tinc -- /srv/tinc_conf_updater.sh
+        ExecStart=/usr/bin/etcdctl exec-watch --recursive /services/tinc -- /srv/tinc_conf_updater.sh
   
   
   
