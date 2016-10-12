@@ -6,7 +6,7 @@ Templates can be used with my [cloud-config-creator](https://github.com/m3adow/c
 
 ## Possible connection methods:
 
-Overlay Network agnostic methods:
+Overlay Network agnostic methods (used in conjunction with flannel):
 
 * [tinc](https://tinc-vpn.org/)
 * [IPOP](http://ipop-project.org/)
