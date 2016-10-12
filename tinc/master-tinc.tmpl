@@ -116,7 +116,6 @@ users:
 {% include 'etcd_misc.yml' ignore missing %}
 
 # TINC
-
 coreos:
   units:
     - name: early-docker.service
@@ -155,7 +154,6 @@ coreos:
         Description=flannel.env file in /run
         Requires=flanneld.service
         After=etcd.service etcd2.service early-docker.service flanneld.service
-        #Before=tinc-conf.service early-docker.target
 
         [Path]
         PathExists=/run/flannel/subnet.env
@@ -188,7 +186,7 @@ coreos:
         ExecStartPre=/bin/sh -c "/usr/bin/docker run --rm --volume /srv/tinc:/etc/tinc  jenserat/tinc add Mode = switch"
         ExecStartPre=/bin/sh -c "/usr/bin/docker run --rm --volume /srv/tinc:/etc/tinc  jenserat/tinc add DeviceType = tap"
         ExecStartPre=-/usr/bin/docker rm -f tinc 
-        ExecStartPre=/usr/bin/docker run --name tinc  -d --volume /srv/tinc:/etc/tinc --net=host --device=/dev/net/tun --cap-add NET_ADMIN jenserat/tinc start  -D
+        ExecStartPre=/usr/bin/docker run --name tinc -d --volume /srv/tinc:/etc/tinc --net=host --device=/dev/net/tun --cap-add NET_ADMIN jenserat/tinc start -D
 
         ExecStart=/bin/sh -c "while true; do etcdctl set /services/tinc/$TINC_HOSTNAME  \"\\\"` cat /srv/tinc/hosts/$TINC_HOSTNAME `\"\\\" --ttl 60;sleep 45;done"
 
@@ -206,10 +204,7 @@ coreos:
 
         [Service]
         Type=oneshot
-        #ExecStartPre=/usr/lib/systemd/systemd-networkd-wait-online --interface=docker0
-        #ExecStartPre=/usr/lib/systemd/systemd-networkd-wait-online --interface=tap0
         ExecStartPre=/bin/sh -c "route add -net 10.1.0.0 netmask 255.255.0.0 dev docker0"
-        #ExecStartPre=-/bin/sh -c "brctl delif docker0 tap0"
         ExecStart=/bin/sh -c "brctl addif docker0 tap0"
     - name: tinc-config-updater.service
       command: start
@@ -227,8 +222,6 @@ coreos:
         ExecStartPre=/srv/tinc_initial_config.sh
         ExecStart=/usr/bin/etcdctl exec-watch --recursive /services/tinc -- /srv/tinc_conf_updater.sh
   
-  
-  
 write_files:
   - path: /srv/tinc_initial_config.sh
     permissions: 0774
@@ -244,7 +237,6 @@ write_files:
         fi
       done
       docker exec tinc /usr/sbin/tinc reload
-
   - path: /srv/tinc_conf_updater.sh
     permissions: 0774
     owner: root
